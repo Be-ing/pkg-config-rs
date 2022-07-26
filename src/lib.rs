@@ -79,6 +79,9 @@ use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::str;
 
+extern crate regex;
+use regex::Regex;
+
 #[derive(Clone, Debug)]
 pub struct Config {
     statik: Option<bool>,
@@ -89,6 +92,7 @@ pub struct Config {
     env_metadata: bool,
     print_system_libs: bool,
     print_system_cflags: bool,
+    allowed_filenames: Regex,
 }
 
 #[derive(Clone, Debug)]
@@ -281,6 +285,48 @@ impl Config {
             print_system_libs: true,
             cargo_metadata: true,
             env_metadata: true,
+            allowed_filenames: Self::allowed_filenames(),
+        }
+    }
+
+    /// Compile the regex used to parse filenames for libraries
+    // (when used rather than the typical -L/lib/dir -llib_name pair)
+    fn allowed_filenames() -> Regex {
+        // Use the TARGET environment variable here rather than typical `#[cfg]` attributes
+        // because `#[cfg]` would apply when the build script is being compiled, which would break
+        // cross compilation. What matters is the target that cargo is compiling for.
+        // unwrap_or_default is needed because `cargo test` does not set TARGET
+        let target = env::var("TARGET").unwrap_or_default();
+        if target.contains("msvc") {
+            // According to link.exe documentation:
+            // https://learn.microsoft.com/en-us/cpp/build/reference/link-input-files?view=msvc-170
+            //
+            //   LINK doesn't use file extensions to make assumptions about the contents of a file.
+            //   Instead, LINK examines each input file to determine what kind of file it is.
+            //
+            // However, rustc appends `.lib` to the string it receives from the -l command line argument,
+            // which it receives from Cargo via cargo:rustc-link-lib:
+            // https://github.com/rust-lang/rust/blob/657f246812ab2684e3c3954b1c77f98fd59e0b21/compiler/rustc_codegen_ssa/src/back/linker.rs#L828
+            // https://github.com/rust-lang/rust/blob/657f246812ab2684e3c3954b1c77f98fd59e0b21/compiler/rustc_codegen_ssa/src/back/linker.rs#L843
+            // So the only file extension that works for MSVC targets is `.lib`
+            Regex::new(r"^(?P<lib_name>.*)\.(lib)$").unwrap()
+        } else if target.contains("windows") && target.contains("gnu") {
+            // GNU targets for Windows, including gnullvm, use `LinkerFlavor::Gcc` internally in rustc,
+            // which tells rustc to use the GNU linker. rustc does not prepend/append to the string it
+            // receives via the -l command line argument before passing it to the linker:
+            // https://github.com/rust-lang/rust/blob/657f246812ab2684e3c3954b1c77f98fd59e0b21/compiler/rustc_codegen_ssa/src/back/linker.rs#L446
+            // https://github.com/rust-lang/rust/blob/657f246812ab2684e3c3954b1c77f98fd59e0b21/compiler/rustc_codegen_ssa/src/back/linker.rs#L457
+            // GNU ld can work with more types of files than just the .lib files that MSVC's link.exe needs.
+            // GNU ld will prepend the `lib` prefix to the filename if necessary, so it is okay to remove
+            // the `lib` prefix from the filename.
+            // https://sourceware.org/binutils/docs-2.39/ld.html#index-direct-linking-to-a-dll
+            Regex::new(r"^(lib)?(?P<lib_name>.*)\.(lib|a|dll|dll.a)$").unwrap()
+        } else if target.contains("apple") {
+            // `$` is intentionally left off the end to handle dynamic library version suffixes like .dylib.2
+            Regex::new(r"^lib(?P<lib_name>.*)\.(a|dylib)").unwrap()
+        } else {
+            // `$` is intentionally left off the end to handle dynamic library version suffixes like .so.2
+            Regex::new(r"^lib(?P<lib_name>.*)\.(a|so)").unwrap()
         }
     }
 
@@ -394,7 +440,7 @@ impl Config {
             },
             other => other,
         })?;
-        library.parse_libs_cflags(name, &output, self);
+        library.parse_libs_cflags(name, &output, &self.allowed_filenames, self);
 
         let output = run(self.command(name, &["--modversion"]))?;
         library.parse_modversion(str::from_utf8(&output).unwrap());
@@ -549,6 +595,7 @@ impl Default for Config {
             print_system_libs: false,
             cargo_metadata: false,
             env_metadata: false,
+            allowed_filenames: Self::allowed_filenames(),
         }
     }
 }
@@ -558,6 +605,7 @@ impl Library {
         Library {
             libs: Vec::new(),
             link_paths: Vec::new(),
+            link_files: Vec::new(),
             include_paths: Vec::new(),
             ld_args: Vec::new(),
             frameworks: Vec::new(),
@@ -568,7 +616,13 @@ impl Library {
         }
     }
 
-    fn parse_libs_cflags(&mut self, name: &str, output: &[u8], config: &Config) {
+    fn parse_libs_cflags(
+        &mut self,
+        name: &str,
+        output: &[u8],
+        allowed_filenames: &Regex,
+        config: &Config,
+    ) {
         let mut is_msvc = false;
         if let Ok(target) = env::var("TARGET") {
             if target.contains("msvc") {
@@ -670,7 +724,31 @@ impl Library {
                         self.include_paths.push(PathBuf::from(inc));
                     }
                 }
-                _ => (),
+                _ => {
+                    let path = std::path::Path::new(part);
+                    if path.is_file() {
+                        // Cargo doesn't have a means to directly specify a file path to link,
+                        // so split up the path into the parent directory and library name.
+                        // TODO: pass file path directly when link-arg library type is stabilized
+                        // https://github.com/rust-lang/rust/issues/99427
+                        if let Some(dir) = path.parent() {
+                            let link_search = format!("rustc-link-search={}", dir.display());
+                            config.print_metadata(&link_search);
+                        }
+                        if let Some(file_name) = path.file_name() {
+                            // libQt5Core.a becomes Qt5Core
+                            // libQt5Core.so.5 becomes Qt5Core
+                            if let Some(captures) =
+                                allowed_filenames.captures(&file_name.to_string_lossy())
+                            {
+                                let lib_basename = captures.name(&"lib_name").unwrap().as_str();
+                                let link_lib = format!("rustc-link-lib={}", lib_basename);
+                                config.print_metadata(&link_lib);
+                                self.link_files.push(PathBuf::from(file_name));
+                            }
+                        }
+                    }
+                }
             }
         }
 

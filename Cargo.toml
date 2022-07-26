@@ -14,5 +14,8 @@ Cargo build scripts.
 keywords = ["build-dependencies"]
 rust-version = "1.40"
 
+[dependencies]
+regex = "1.6.0"
+
 [dev-dependencies]
 lazy_static = "1"
