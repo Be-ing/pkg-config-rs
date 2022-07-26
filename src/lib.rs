@@ -568,6 +568,15 @@ impl Library {
     }
 
     fn parse_libs_cflags(&mut self, name: &str, output: &[u8], config: &Config) {
+        #[cfg(windows)]
+        lazy_static::lazy_static! {
+            static ref LIB_BASENAME: regex::Regex = regex::Regex::new(r"^(.*)\.(lib|dll)$").unwrap();
+        }
+        #[cfg(not(windows))]
+        lazy_static::lazy_static! {
+            static ref LIB_BASENAME: regex::Regex = regex::Regex::new(r"^lib(.*)\.(a|so|dylib)").unwrap();
+        }
+
         let mut is_msvc = false;
         if let Ok(target) = env::var("TARGET") {
             if target.contains("msvc") {
@@ -669,7 +678,28 @@ impl Library {
                         self.include_paths.push(PathBuf::from(inc));
                     }
                 }
-                _ => (),
+                _ => {
+                    let path = std::path::Path::new(part);
+                    if path.is_file() {
+                        // Cargo doesn't have a means to directly specify a file path to link,
+                        // so split up the path into the parent directory and library name.
+                        if let Some(dir) = path.parent() {
+                            let link_search = format!("rustc-link-search={}", dir.display());
+                            config.print_metadata(&link_search);
+                        }
+                        if let Some(file_name) = path.file_name() {
+                            // libQt5Core.a becomes Qt5Core
+                            // libQt5Core.so.5 becomes Qt5Core
+                            if let Some(captures) =
+                                LIB_BASENAME.captures(&file_name.to_string_lossy())
+                            {
+                                let lib_basename = captures.get(1).unwrap().as_str();
+                                let link_lib = format!("rustc-link-lib={}", lib_basename);
+                                config.print_metadata(&link_lib);
+                            }
+                        }
+                    }
+                }
             }
         }
 
