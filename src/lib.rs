@@ -553,7 +553,7 @@ impl Default for Config {
 }
 
 impl Library {
-    fn new() -> Library {
+    pub fn new() -> Library {
         Library {
             libs: Vec::new(),
             link_paths: Vec::new(),
@@ -567,7 +567,7 @@ impl Library {
         }
     }
 
-    fn parse_libs_cflags(&mut self, name: &str, output: &[u8], config: &Config) {
+    pub fn parse_libs_cflags(&mut self, name: &str, output: &[u8], config: &Config) {
         #[cfg(windows)]
         lazy_static::lazy_static! {
             static ref LIB_BASENAME: regex::Regex = regex::Regex::new(r"^(.*)\.(lib|dll)$").unwrap();
