@@ -681,7 +681,7 @@ impl Library {
                 _ => {
                     let path = std::path::Path::new(part);
                     if path.is_file() {
-                        let link_lib = format!("rustc-link-lib={}", part);
+                        let link_lib = format!("rustc-link-lib=+verbatim={}", part);
                         config.print_metadata(&link_lib);
                         // // Cargo doesn't have a means to directly specify a file path to link,
                         // // so split up the path into the parent directory and library name.
