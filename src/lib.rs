@@ -681,23 +681,25 @@ impl Library {
                 _ => {
                     let path = std::path::Path::new(part);
                     if path.is_file() {
-                        // Cargo doesn't have a means to directly specify a file path to link,
-                        // so split up the path into the parent directory and library name.
-                        if let Some(dir) = path.parent() {
-                            let link_search = format!("rustc-link-search={}", dir.display());
-                            config.print_metadata(&link_search);
-                        }
-                        if let Some(file_name) = path.file_name() {
-                            // libQt5Core.a becomes Qt5Core
-                            // libQt5Core.so.5 becomes Qt5Core
-                            if let Some(captures) =
-                                LIB_BASENAME.captures(&file_name.to_string_lossy())
-                            {
-                                let lib_basename = captures.get(1).unwrap().as_str();
-                                let link_lib = format!("rustc-link-lib={}", lib_basename);
-                                config.print_metadata(&link_lib);
-                            }
-                        }
+                        let link_lib = format!("rustc-link-lib={}", part);
+                        config.print_metadata(&link_lib);
+                        // // Cargo doesn't have a means to directly specify a file path to link,
+                        // // so split up the path into the parent directory and library name.
+                        // if let Some(dir) = path.parent() {
+                        //     let link_search = format!("rustc-link-search={}", dir.display());
+                        //     config.print_metadata(&link_search);
+                        // }
+                        // if let Some(file_name) = path.file_name() {
+                        //     // libQt5Core.a becomes Qt5Core
+                        //     // libQt5Core.so.5 becomes Qt5Core
+                        //     if let Some(captures) =
+                        //         LIB_BASENAME.captures(&file_name.to_string_lossy())
+                        //     {
+                        //         let lib_basename = captures.get(1).unwrap().as_str();
+                        //         let link_lib = format!("rustc-link-lib={}", lib_basename);
+                        //         config.print_metadata(&link_lib);
+                        //     }
+                        // }
                     }
                 }
             }
