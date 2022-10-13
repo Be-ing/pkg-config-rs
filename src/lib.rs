@@ -669,7 +669,14 @@ impl Library {
                         self.include_paths.push(PathBuf::from(inc));
                     }
                 }
-                _ => (),
+                _ => {
+                    let path = std::path::Path::new(part);
+                    if path.is_file() {
+                        // Pass file paths directly to the linker instead of going through
+                        // rustc adding platform-specific prefixes/suffixes with rustc-link-lib.
+                        config.print_metadata(&format!("rustc-link-arg={}", part));
+                    }
+                }
             }
         }
 
