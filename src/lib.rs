@@ -553,7 +553,7 @@ impl Default for Config {
 }
 
 impl Library {
-    fn new() -> Library {
+    pub fn new() -> Library {
         Library {
             libs: Vec::new(),
             link_paths: Vec::new(),
@@ -567,7 +567,7 @@ impl Library {
         }
     }
 
-    fn parse_libs_cflags(&mut self, name: &str, output: &[u8], config: &Config) {
+    pub fn parse_libs_cflags(&mut self, name: &str, output: &[u8], config: &Config) {
         let mut is_msvc = false;
         if let Ok(target) = env::var("TARGET") {
             if target.contains("msvc") {
@@ -675,6 +675,7 @@ impl Library {
                         // Pass file paths directly to the linker instead of going through
                         // rustc adding platform-specific prefixes/suffixes with rustc-link-lib.
                         config.print_metadata(&format!("rustc-link-arg={}", part));
+                        self.libs.push(part.to_string());
                     }
                 }
             }
