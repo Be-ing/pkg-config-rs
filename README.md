@@ -13,7 +13,7 @@ You can use this crate directly to probe for specific libraries, or use
 [system-deps](https://github.com/gdesmott/system-deps) to declare all your
 `pkg-config` dependencies in `Cargo.toml`.
 
-This library requires Rust 1.30+.
+This library requires Rust 1.40+.
 
 # Example
 
