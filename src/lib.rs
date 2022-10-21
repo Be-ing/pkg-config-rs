@@ -115,7 +115,6 @@ pub struct Library {
     pub defines: HashMap<String, Option<String>>,
     /// Version specified by .pc file's Version field
     pub version: String,
-    _priv: (),
 }
 
 /// Represents all reasons `pkg-config` might not succeed or be run at all.
@@ -622,7 +621,6 @@ impl Library {
             framework_paths: Vec::new(),
             defines: HashMap::new(),
             version: String::new(),
-            _priv: (),
         }
     }
 
