@@ -300,7 +300,7 @@ impl Config {
 
     /// Compile the regex used to parse filenames for libraries
     // (when used rather than the typical -L/lib/dir -llib_name pair)
-    fn allowed_filenames() -> Regex {
+    pub fn allowed_filenames() -> Regex {
         // Use the TARGET environment variable here rather than typical `#[cfg]` attributes
         // because `#[cfg]` would apply when the build script is being compiled, which would break
         // cross compilation. What matters is the target that cargo is compiling for.
@@ -610,7 +610,7 @@ impl Default for Config {
 }
 
 impl Library {
-    fn new() -> Library {
+    pub fn new() -> Library {
         Library {
             libs: Vec::new(),
             link_paths: Vec::new(),
@@ -624,7 +624,7 @@ impl Library {
         }
     }
 
-    fn parse_libs_cflags(
+    pub fn parse_libs_cflags(
         &mut self,
         name: &str,
         output: &[u8],
