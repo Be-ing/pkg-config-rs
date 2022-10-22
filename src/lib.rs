@@ -560,7 +560,7 @@ impl Default for Config {
 }
 
 impl Library {
-    fn new() -> Library {
+    pub fn new() -> Library {
         Library {
             libs: Vec::new(),
             link_paths: Vec::new(),
@@ -632,7 +632,7 @@ impl Library {
         }
     }
 
-    fn parse_libs_cflags(&mut self, name: &str, output: &[u8], config: &Config) {
+    pub fn parse_libs_cflags(&mut self, name: &str, output: &[u8], config: &Config) {
         let mut is_msvc = false;
         let target = env::var("TARGET");
         if let Ok(target) = &target {
